@@ -1,4 +1,4 @@
-export const API_URL = process.env.API_URL || 'http://3.134.90.170/api';
+export const API_URL = process.env.API_URL || 'https://api-blog.incrivel.tech/';
 const ADMIN_TOKEN_KEY = process.env.ADMIN_TOKEN_KEY || 'blog-incrivel-admin-token';
 
 function getAdminToken(): string | null {
