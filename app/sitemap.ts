@@ -7,7 +7,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   
   try {
     const posts = await fetchPosts();
-    const publicPosts = posts.filter(isPostPublic);
+    const publicPosts = posts.filter(post => isPostPublic(post));
 
     const postEntries: MetadataRoute.Sitemap = publicPosts.map(post => ({
       url: `${siteUrl}/blog/${post.slug}`,
