@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import PublicFooter from '@/components/layout/PublicFooter';
 import PublicHeader from '@/components/layout/PublicHeader';
+import BlogPostJsonLd from '@/components/BlogPostJsonLd';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { fetchCommentsByPost, recordView, type ApiComment, type ApiPost, type ApiPromoCard } from '@/lib/api';
@@ -68,6 +69,7 @@ export default function BlogPostClient({
   return (
     <main className="min-h-screen bg-app">
       <PublicHeader backHref="/" />
+      {post && <BlogPostJsonLd post={post} />}
       <article className="mx-auto max-w-[1180px] px-5 py-10 md:px-6">
         <PostHero post={post} onPostChange={setPost} shareStatus={shareStatus} onShare={share} />
         <PostContent post={post} promoCards={initialPromoCards} onShare={share} />
