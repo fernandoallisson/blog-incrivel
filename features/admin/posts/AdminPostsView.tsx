@@ -7,6 +7,7 @@ import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
 import { createCategory, createPost, createTag, deletePost, fetchCategories, fetchMedia, fetchPosts, fetchTags, fetchUsers, updatePost, uploadMedia, type ApiCategory, type ApiMedia, type ApiPost, type ApiTag, type ApiUser, type PostPayload } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
+import { compressUploadImage } from '@/lib/imageCompression';
 import { AdminGrid } from '../shared/AdminGrid';
 import { slugify } from '../shared/slugify';
 import PostForm from './PostForm';
@@ -29,6 +30,9 @@ export default function AdminPostsView() {
   const [categoryForm, setCategoryForm] = useState({ name: '', slug: '', description: '' });
   const [tagForm, setTagForm] = useState({ name: '', slug: '' });
   const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [isSavingPost, setIsSavingPost] = useState(false);
+  const [isProcessingMediaFile, setIsProcessingMediaFile] = useState(false);
+  const [isSavingMedia, setIsSavingMedia] = useState(false);
 
   async function load() {
     const storedUser = getStoredUser();
@@ -54,12 +58,14 @@ export default function AdminPostsView() {
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSavingPost) return;
     if (!form.media_id) return setMessage('Escolha uma mídia para vincular ao post.');
     if (form.status === 'scheduled' && !form.scheduled_at) return setMessage('Informe data e hora para programar o post.');
     if (form.status === 'scheduled' && new Date(form.scheduled_at).getTime() <= Date.now()) return setMessage('Escolha uma data futura para programar o post.');
 
     const payload: PostPayload = buildPayload(form, selectedMedia?.url || null);
     try {
+      setIsSavingPost(true);
       if (editingId) await updatePost(editingId, payload); else await createPost(payload);
       setMessage(editingId ? 'Post atualizado.' : 'Post criado.');
       setEditingId(null);
@@ -67,6 +73,8 @@ export default function AdminPostsView() {
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Falha ao salvar.');
+    } finally {
+      setIsSavingPost(false);
     }
   }
 
@@ -130,16 +138,37 @@ export default function AdminPostsView() {
 
   async function saveMedia(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isProcessingMediaFile || isSavingMedia) return;
     if (!mediaFile) return setModalMessage('Selecione uma imagem.');
     setModalMessage('');
     try {
+      setIsSavingMedia(true);
       const item = await uploadMedia(mediaFile);
       setMedia((current) => [item, ...current]);
       setForm((current) => ({ ...current, media_id: String(item.id) }));
       setMediaFile(null);
       closeModal();
     } catch (error) {
-      setModalMessage(error instanceof Error ? error.message : 'Falha ao enviar mídia.');
+      setModalMessage(error instanceof Error ? error.message : 'Falha ao enviar midia.');
+    } finally {
+      setIsSavingMedia(false);
+    }
+  }
+  async function handleMediaFileChange(file: File | null) {
+    setModalMessage('');
+    if (!file) {
+      setMediaFile(null);
+      return;
+    }
+
+    try {
+      setIsProcessingMediaFile(true);
+      setMediaFile(await compressUploadImage(file));
+    } catch (error) {
+      setMediaFile(null);
+      setModalMessage(error instanceof Error ? error.message : 'Falha ao processar imagem.');
+    } finally {
+      setIsProcessingMediaFile(false);
     }
   }
 
@@ -156,7 +185,7 @@ export default function AdminPostsView() {
   return (
     <AdminPageShell active="posts" title="Posts" eyebrow={`${posts.length} posts na API`}>
       <AdminGrid className="lg:grid-cols-[380px_minmax(0,1fr)]">
-        <PostForm form={form} editing={Boolean(editingId)} message={message} media={availableMedia} categories={categories} tags={tags} users={users} canChooseAuthor={isAdmin} selectedMedia={selectedMedia} onCreateCategory={() => openModal('category')} onCreateMedia={() => openModal('media')} onCreateTag={() => openModal('tag')} onChange={setForm} onSubmit={save} />
+        <PostForm form={form} editing={Boolean(editingId)} message={message} media={availableMedia} categories={categories} tags={tags} users={users} canChooseAuthor={isAdmin} selectedMedia={selectedMedia} isSaving={isSavingPost} onCreateCategory={() => openModal('category')} onCreateMedia={() => openModal('media')} onCreateTag={() => openModal('tag')} onChange={setForm} onSubmit={save} />
         <PostLivePreview form={form} media={selectedMedia} categoryName={selectedCategory?.name} selectedTags={selectedTags} authorName={selectedAuthor?.name} />
       </AdminGrid>
       <div className="mt-4">
@@ -176,15 +205,17 @@ export default function AdminPostsView() {
         </InlineCreateModal>
       )}
       {modal === 'media' && (
-        <InlineCreateModal title="Nova mídia" message={modalMessage} onClose={closeModal} onSubmit={saveMedia} submitLabel="Enviar mídia" disabled={!mediaFile}>
+        <InlineCreateModal title="Nova mídia" message={modalMessage} onClose={closeModal} onSubmit={saveMedia} submitLabel={isSavingMedia ? 'Enviando...' : 'Enviar midia'} disabled={!mediaFile || isProcessingMediaFile || isSavingMedia}>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-muted">Imagem</label>
             <input
               type="file"
-              accept="image/*"
-              onChange={(event) => setMediaFile(event.target.files?.[0] || null)}
+              accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+              disabled={isProcessingMediaFile || isSavingMedia}
+              onChange={(event) => handleMediaFileChange(event.target.files?.[0] || null)}
               className="rounded-md border border-border-strong bg-glass px-3 py-2 text-sm text-text file:mr-3 file:rounded-md file:border-0 file:bg-brand/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-brand"
             />
+            {isProcessingMediaFile && <span className="text-xs text-subtle">Comprimindo e redimensionando...</span>}
             {mediaFile && <span className="text-xs text-subtle">{mediaFile.name}</span>}
           </div>
         </InlineCreateModal>

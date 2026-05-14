@@ -11,6 +11,7 @@ import Textarea from '@/components/ui/Textarea';
 import { AdminGrid, AdminRow } from '@/features/admin/shared/AdminGrid';
 import { createPromoCard, deletePromoCard, fetchPosts, fetchPromoCardMetrics, fetchPromoCards, fetchUsers, updatePromoCard, uploadMedia, type ApiPost, type ApiPromoCard, type ApiUser, type DashboardPeriod, type PromoCardMetrics, type PromoCardPayload } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
+import { compressUploadImage } from '@/lib/imageCompression';
 
 type PromoForm = {
   title: string;
@@ -63,6 +64,8 @@ export default function AdminPromoCardsPage() {
   const [period, setPeriod] = useState<DashboardPeriod>('30d');
   const [message, setMessage] = useState('');
   const [previewImageUrl, setPreviewImageUrl] = useState('');
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const metricsRef = useRef<HTMLDivElement | null>(null);
 
   async function load() {
@@ -102,9 +105,11 @@ export default function AdminPromoCardsPage() {
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isProcessingImage || isSaving) return;
     setMessage('');
 
     try {
+      setIsSaving(true);
       let imageUrl = form.image_url;
       if (form.file) {
         const media = await uploadMedia(form.file);
@@ -137,6 +142,27 @@ export default function AdminPromoCardsPage() {
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Falha ao salvar card.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleImageFileChange(file: File | null) {
+    setMessage('');
+    if (!file) {
+      setForm((current) => ({ ...current, file: null }));
+      return;
+    }
+
+    try {
+      setIsProcessingImage(true);
+      const compressedFile = await compressUploadImage(file);
+      setForm((current) => ({ ...current, file: compressedFile }));
+    } catch (error) {
+      setForm((current) => ({ ...current, file: null }));
+      setMessage(error instanceof Error ? error.message : 'Falha ao processar imagem.');
+    } finally {
+      setIsProcessingImage(false);
     }
   }
 
@@ -190,7 +216,7 @@ export default function AdminPromoCardsPage() {
             <div className="font-extrabold text-text">{editingId ? 'Editar card' : 'Novo card'}</div>
             <Input label="Título" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             <Textarea label="Descrição" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            <ImageField form={form} onChange={setForm} />
+            <ImageField form={form} isProcessingImage={isProcessingImage} disabled={isProcessingImage || isSaving} onChange={setForm} onFileChange={handleImageFileChange} />
             <Input label="Texto do CTA" value={form.cta_label} onChange={(e) => setForm({ ...form, cta_label: e.target.value })} />
             <Input label="Link do CTA" value={form.cta_url} onChange={(e) => setForm({ ...form, cta_url: e.target.value })} />
             <PostPicker posts={posts} selectedIds={form.post_ids} onChange={(postIds) => setForm({ ...form, post_ids: postIds })} />
@@ -198,7 +224,7 @@ export default function AdminPromoCardsPage() {
             {isAdmin && <Select label="Autor" value={String(form.author_id)} onChange={(e) => setForm({ ...form, author_id: Number(e.target.value) })} options={(users.length ? users : currentUser ? [{ id: currentUser.id, name: currentUser.name || currentUser.email } as ApiUser] : []).map((user) => ({ value: String(user.id), label: user.name }))} />}
             <ColorFields form={form} onChange={setForm} />
             {message && <div className={`text-xs ${message.includes('Falha') ? 'text-error' : 'text-success'}`}>{message}</div>}
-            <Button type="submit" full disabled={!form.title}>{editingId ? 'Atualizar card' : 'Criar card'}</Button>
+            <Button type="submit" full disabled={isProcessingImage || isSaving || !form.title}>{isSaving ? 'Salvando...' : editingId ? 'Atualizar card' : 'Criar card'}</Button>
           </form>
         </Card>
 
@@ -220,16 +246,19 @@ export default function AdminPromoCardsPage() {
   );
 }
 
-function ImageField({ form, onChange }: { form: PromoForm; onChange: (form: PromoForm) => void }) {
+function ImageField({ form, isProcessingImage, disabled, onChange, onFileChange }: { form: PromoForm; isProcessingImage: boolean; disabled: boolean; onChange: (form: PromoForm) => void; onFileChange: (file: File | null) => void }) {
   return (
     <div className="flex flex-col gap-2">
       <label className="text-xs font-semibold text-muted">Imagem</label>
       <input
         type="file"
-        accept="image/*"
-        onChange={(event) => onChange({ ...form, file: event.target.files?.[0] || null })}
+        accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+        disabled={disabled}
+        onChange={(event) => onFileChange(event.target.files?.[0] || null)}
         className="rounded-md border border-border-strong bg-glass px-3 py-2 text-sm text-text file:mr-3 file:rounded-md file:border-0 file:bg-brand/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-brand"
       />
+      {isProcessingImage && <span className="text-xs text-subtle">Comprimindo e redimensionando...</span>}
+      {form.file && <span className="text-xs text-subtle">{form.file.name}</span>}
       <Input label="Ou URL da imagem" value={form.image_url} onChange={(e) => onChange({ ...form, image_url: e.target.value })} />
     </div>
   );

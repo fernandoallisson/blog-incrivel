@@ -44,7 +44,7 @@ function LoginForm() {
         <div className="mb-5 flex justify-center"><Logo /></div>
         <Card className="p-7">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div><div className="text-2xl font-extrabold text-text">Entrar no admin</div><div className="mt-1.5 text-[13px] text-muted">Use o login do backend.</div></div>
+            <div><div className="text-2xl font-extrabold text-text">Entrar no admin</div></div>
             <Input label="E-mail" icon="user" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="admin@blog.com" />
             <Input label="Senha" icon="lock" type="password" value={password} onChange={(event) => setPassword(event.target.value)} error={error} />
             <Button type="submit" full icon="lock" disabled={loading || !email || !password}>{loading ? 'Entrando...' : 'Entrar'}</Button>

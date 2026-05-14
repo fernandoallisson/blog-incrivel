@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import AdminPageShell from '@/components/AdminPageShell';
 import { createMedia, deleteMedia, fetchMedia, fetchPosts, updateMedia, uploadMedia, type ApiMedia, type ApiPost } from '@/lib/api';
+import { compressUploadImage } from '@/lib/imageCompression';
 import { AdminGrid } from '../shared/AdminGrid';
 import MediaForm from './MediaForm';
 import MediaTable from './MediaTable';
@@ -14,6 +15,8 @@ export default function AdminMediaView() {
   const [form, setForm] = useState<MediaFormState>(emptyMediaForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [message, setMessage] = useState('');
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   async function load() {
     const [mediaData, postData] = await Promise.all([fetchMedia(), fetchPosts()]);
@@ -25,6 +28,7 @@ export default function AdminMediaView() {
 
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (isProcessingImage || isSaving) return;
     const postId = form.post_id ? Number(form.post_id) : null;
     const payload = {
       filename: form.filename,
@@ -35,6 +39,7 @@ export default function AdminMediaView() {
     };
 
     try {
+      setIsSaving(true);
       if (form.file) {
         await uploadMedia(form.file, { post_id: postId, media_id: editingId });
       } else if (editingId) {
@@ -48,6 +53,33 @@ export default function AdminMediaView() {
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Falha ao salvar midia.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleFileChange(file: File | null) {
+    setMessage('');
+    if (!file) {
+      setForm((current) => ({ ...current, file: null, filename: '', type: '', size: '' }));
+      return;
+    }
+
+    try {
+      setIsProcessingImage(true);
+      const compressedFile = await compressUploadImage(file);
+      setForm((current) => ({
+        ...current,
+        file: compressedFile,
+        filename: compressedFile.name,
+        type: compressedFile.type,
+        size: String(compressedFile.size),
+      }));
+    } catch (error) {
+      setForm((current) => ({ ...current, file: null, filename: '', type: '', size: '' }));
+      setMessage(error instanceof Error ? error.message : 'Falha ao processar imagem.');
+    } finally {
+      setIsProcessingImage(false);
     }
   }
 
@@ -72,7 +104,7 @@ export default function AdminMediaView() {
   return (
     <AdminPageShell active="media" title="Midia" eyebrow={`${items.length} arquivos`}>
       <AdminGrid>
-        <MediaForm form={form} posts={posts} message={message} onChange={setForm} onSubmit={save} />
+        <MediaForm form={form} posts={posts} message={message} isProcessingImage={isProcessingImage} isSaving={isSaving} onChange={setForm} onFileChange={handleFileChange} onSubmit={save} />
         <MediaTable items={items} onEdit={edit} onDelete={remove} />
       </AdminGrid>
     </AdminPageShell>

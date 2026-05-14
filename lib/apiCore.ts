@@ -1,5 +1,5 @@
-export const API_URL = process.env.API_URL || 'https://api-blog.incrivel.tech/api';
-const ADMIN_TOKEN_KEY = process.env.ADMIN_TOKEN_KEY || 'blog-incrivel-admin-token';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'https://api-blog.incrivel.tech/api/';
+const ADMIN_TOKEN_KEY = process.env.NEXT_PUBLIC_ADMIN_TOKEN_KEY || process.env.ADMIN_TOKEN_KEY || 'blog-incrivel-admin-token';
 
 function getAdminToken(): string | null {
   if (typeof window === 'undefined') return null;

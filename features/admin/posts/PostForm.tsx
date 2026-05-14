@@ -20,6 +20,7 @@ type Props = {
   users: ApiUser[];
   canChooseAuthor: boolean;
   selectedMedia?: ApiMedia;
+  isSaving: boolean;
   onCreateCategory: () => void;
   onCreateMedia: () => void;
   onCreateTag: () => void;
@@ -27,7 +28,7 @@ type Props = {
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 };
 
-export default function PostForm({ form, editing, message, media, categories, tags, users, canChooseAuthor, selectedMedia, onCreateCategory, onCreateMedia, onCreateTag, onChange, onSubmit }: Props) {
+export default function PostForm({ form, editing, message, media, categories, tags, users, canChooseAuthor, selectedMedia, isSaving, onCreateCategory, onCreateMedia, onCreateTag, onChange, onSubmit }: Props) {
   return (
     <Card className="p-4">
       <form onSubmit={onSubmit} className="flex flex-col gap-3">
@@ -58,7 +59,7 @@ export default function PostForm({ form, editing, message, media, categories, ta
         <TagPicker tags={tags} selectedIds={form.tag_ids} onCreateTag={onCreateTag} onChange={(tagIds) => onChange({ ...form, tag_ids: tagIds })} />
         {canChooseAuthor && <Select label="Autor" value={String(form.author_id)} onChange={(e) => onChange({ ...form, author_id: Number(e.target.value) })} options={users.map((u) => ({ value: String(u.id), label: u.name }))} />}
         {message && <div className={`text-xs ${message.includes('Falha') || message.includes('Escolha') ? 'text-error' : 'text-success'}`}>{message}</div>}
-        <Button type="submit" full disabled={!form.title || !form.content || !form.media_id}>Salvar</Button>
+        <Button type="submit" full disabled={isSaving || !form.title || !form.content || !form.media_id}>{isSaving ? 'Salvando...' : 'Salvar'}</Button>
       </form>
     </Card>
   );
